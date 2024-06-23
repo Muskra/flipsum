@@ -14,24 +14,38 @@ struct Coordinates {
 // flipping the bytes should be with XOR operation (a ^ b) ^ b = a
 // to make the swap from buffer the equation is array[length * row + col] = value
 void flipper(struct Coordinates targets[7], unsigned char *buffer, size_t size_grid) {
+
     int rep, coo, index = 0;
     size_t size_targets = sizeof(&targets);
     
+    // repeat the thing 128 times because why not doing that
     for (; rep < 128; rep++) {
+        index = 0;
+        coo = 0;
         for (; coo < size_targets; coo++) {
-            for (; index < size_buffer; index++) {
+            for (; index < size_grid; index++) {
             
                 int targ = size_grid * targets[coo].X + targets[coo].Y;
                 assert(targ > size_grid);
+
+                // swap values with bitwise XOR
+                //printf("actual: %d, target: %d\n", buffer[index], buffer[targ]);
+                
                 buffer[index] ^= buffer[targ];
+                //printf("actual: %d, target: %d\n", buffer[index], buffer[targ]);
+                
                 buffer[targ] ^= buffer[index];
+                //printf("actual: %d, target: %d\n", buffer[index], buffer[targ]);
+                
                 buffer[index] ^= buffer[targ];
+                //printf("actual: %d, target: %d\n", buffer[index], buffer[targ]);
             }
         }
     }
 }
 
 void encode(FILE *in, FILE *out) {
+
     unsigned char buffer[BUFF_SIZE] = {0};
     size_t size = 0;
 
@@ -50,7 +64,7 @@ void encode(FILE *in, FILE *out) {
     do {
         size = fread(buffer, 1, BUFF_SIZE, in);
 
-        // padd the buffer with zeros
+        // fill the buffer with zeros
         memset(buffer + size, 0, BUFF_SIZE - size);
 
         flipper(targets, buffer, GRID_SIZE);
