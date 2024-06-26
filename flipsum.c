@@ -6,39 +6,54 @@
 #define GRID_SIZE 32
 #define BUFF_SIZE (GRID_SIZE * GRID_SIZE)
 
-struct Coordinates {
-    uint8_t X;
-    uint8_t Y;
-};
+typedef struct {
+    uint32_t X;
+    uint32_t Y;
+} coordinates_t;
+
+coordinates_t get_coordinates(int relative_source, coordinates_t destination) {
+    // formula to find coordinates relatives to a specific element in the 2D list
+    // x = (x + offset)%width
+    // x += x < 0 ? width : 0;
+ 
+    //destination.X = relative_source / GRID_SIZE;
+    destination.X = (destination.X + destination.X) % GRID_SIZE;
+    destination.X += destination.X < 0 ? GRID_SIZE : 0;
+
+    //destination.Y = relative_source % GRID_SIZE;
+    destination.Y = (destination.Y + destination.X) % GRID_SIZE;
+    destination.Y += destination.Y < 0 ? GRID_SIZE : 0;
+
+    return destination;
+}
+
+void swap(int source, coordinates_t destination, unsigned char *buffer, size_t size_grid) {
+ 
+    int targ = size_grid * destination.X + destination.Y;
+
+    // swap values with bitwise XOR
+    buffer[source] ^= buffer[targ];
+    buffer[targ] ^= buffer[source];
+    buffer[source] ^= buffer[targ];
+}
 
 // flipping the bytes should be with XOR operation (a ^ b) ^ b = a
 // to make the swap from buffer the equation is array[length * row + col] = value
-void flipper(struct Coordinates targets[7], unsigned char *buffer, size_t size_grid) {
+void flipper(coordinates_t *targets, unsigned char *buffer, size_t size_grid) {
 
-    int rep, coo, index = 0;
+    int rep, index_coo, index_grid = 0;
     size_t size_targets = sizeof(&targets);
+    coordinates_t destination;
     
-    // repeat the thing 128 times because why not doing that
-    for (; rep < 128; rep++) {
-        index = 0;
-        coo = 0;
-        for (; coo < size_targets; coo++) {
-            for (; index < size_grid; index++) {
-            
-                int targ = size_grid * targets[coo].X + targets[coo].Y;
-                assert(targ > size_grid);
-
-                // swap values with bitwise XOR
-                //printf("actual: %d, target: %d\n", buffer[index], buffer[targ]);
-                
-                buffer[index] ^= buffer[targ];
-                //printf("actual: %d, target: %d\n", buffer[index], buffer[targ]);
-                
-                buffer[targ] ^= buffer[index];
-                //printf("actual: %d, target: %d\n", buffer[index], buffer[targ]);
-                
-                buffer[index] ^= buffer[targ];
-                //printf("actual: %d, target: %d\n", buffer[index], buffer[targ]);
+    for (; rep < 65536; rep++) {
+        index_grid = 0;
+        index_coo = 0;
+        for (; index_grid < size_grid; index_grid++) {
+            for (; index_coo < size_targets; index_coo++) {
+                // getting destination position
+                destination = get_coordinates(index_grid, targets[index_coo]);
+                // swapping the values
+                swap(index_grid, destination, buffer, size_grid);
             }
         }
     }
@@ -49,16 +64,26 @@ void encode(FILE *in, FILE *out) {
     unsigned char buffer[BUFF_SIZE] = {0};
     size_t size = 0;
 
-    struct Coordinates targets[9] = {
-        {.X = 12, .Y = 7},
-        {.X = 29, .Y = 6},
-        {.X = 17, .Y= 3},
-        {.X = 27, .Y = 10},
-        {.X = 28, .Y = 23},
-        {.X = 30, .Y = 29},
-        {.X = 2, .Y = 13},
-        {.X = 31, .Y = 26},
-        {.X = 11, .Y = 0},
+    coordinates_t targets[18] = {
+        // should cumulate a lot of rules to makes it more "random"
+        {.X = 31, .Y = 7},
+        {.X = 17, .Y = 19},
+        {.X = 23, .Y = 3},
+        {.X = 13, .Y = 13},
+        {.X = 13, .Y = 3},
+        {.X = 11, .Y = 5},
+        {.X = 29, .Y = 2},
+        {.X = 1, .Y = 21},
+        {.X = 7, .Y = 23},
+        {.X = 16, .Y = 17},
+        {.X = 3, .Y = 3},
+        {.X = 29, .Y = 29},
+        {.X = 294, .Y = 23941},
+        {.X = 9288, .Y = 111},
+        {.X = 127, .Y = 2},
+        {.X = 29, .Y = 2},
+        {.X = 13, .Y = 3},
+        {.X = 11, .Y = 1111},
     };
 
     do {
