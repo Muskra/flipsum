@@ -7,8 +7,8 @@
 #define BUFF_SIZE (GRID_SIZE * GRID_SIZE)
 
 typedef struct {
-    uint32_t X;
-    uint32_t Y;
+    int X;
+    int Y;
 } coordinates_t;
 
 coordinates_t get_coordinates(int relative_source, coordinates_t destination) {
@@ -17,7 +17,7 @@ coordinates_t get_coordinates(int relative_source, coordinates_t destination) {
     // x += x < 0 ? width : 0;
  
     //destination.X = relative_source / GRID_SIZE;
-    destination.X = (destination.X + destination.X) % GRID_SIZE;
+    destination.X = (2 * destination.X) % GRID_SIZE;
     destination.X += destination.X < 0 ? GRID_SIZE : 0;
 
     //destination.Y = relative_source % GRID_SIZE;
@@ -27,33 +27,28 @@ coordinates_t get_coordinates(int relative_source, coordinates_t destination) {
     return destination;
 }
 
-void swap(int source, coordinates_t destination, unsigned char *buffer, size_t size_grid) {
+void swap(int source, coordinates_t destination, unsigned char *buffer) {
  
-    int targ = size_grid * destination.X + destination.Y;
+    int targ = GRID_SIZE * destination.X + destination.Y;
 
-    // swap values with bitwise XOR
-    buffer[source] ^= buffer[targ];
-    buffer[targ] ^= buffer[source];
-    buffer[source] ^= buffer[targ];
+    unsigned char temp = buffer[source];
+    buffer[source] = buffer[targ];
+    buffer[targ] = temp;
 }
 
 // flipping the bytes should be with XOR operation (a ^ b) ^ b = a
 // to make the swap from buffer the equation is array[length * row + col] = value
-void flipper(coordinates_t *targets, unsigned char *buffer, size_t size_grid) {
+void flipper(coordinates_t *targets, int size_targets, unsigned char *buffer) {
 
-    int rep, index_coo, index_grid = 0;
-    size_t size_targets = sizeof(&targets);
-    coordinates_t destination;
+    coordinates_t destination = {0};
     
-    for (; rep < 65536; rep++) {
-        index_grid = 0;
-        index_coo = 0;
-        for (; index_grid < size_grid; index_grid++) {
-            for (; index_coo < size_targets; index_coo++) {
+    for (int rep = 0; rep < 65536; rep++) {
+        for (int index_grid = 0; index_grid < GRID_SIZE; index_grid++) {
+            for (int index_coo = 0; index_coo < size_targets; index_coo++) {
                 // getting destination position
                 destination = get_coordinates(index_grid, targets[index_coo]);
                 // swapping the values
-                swap(index_grid, destination, buffer, size_grid);
+                swap(index_grid, destination, buffer);
             }
         }
     }
@@ -63,6 +58,7 @@ void encode(FILE *in, FILE *out) {
 
     unsigned char buffer[BUFF_SIZE] = {0};
     size_t size = 0;
+    int targets_count = 18;
 
     coordinates_t targets[18] = {
         // should cumulate a lot of rules to makes it more "random"
@@ -92,7 +88,7 @@ void encode(FILE *in, FILE *out) {
         // fill the buffer with zeros
         memset(buffer + size, 0, BUFF_SIZE - size);
 
-        flipper(targets, buffer, GRID_SIZE);
+        flipper(targets, targets_count, buffer);
 
         fwrite(buffer, 1, size, out);
     
