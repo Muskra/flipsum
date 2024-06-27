@@ -11,6 +11,21 @@ typedef struct {
     int Y;
 } coordinates_t;
 
+/*
+ * NOTES
+ *
+ * what it's underneath is far too complex but it's my reflexions i've got first so i'm leaving them there to reming me of how i could do it better than first thoughts lol.
+ * 
+ * For now, the algorithm is pretty much fine, it's shuffling very well but there is some problems.
+ * The most problematic is that sometimes there can be untouched information and it's not what we want.
+ * Maybe the solution to this is just to find the adequate ruleset to shuffle everything. As i'm not able yet to define an adequate one, i've thinked about some alternative methods :
+ *
+ *      To prevent this, i can add an offset to the calculated destinations from the relative cell. This will prevent that since it will apply the rule on the same range the cell is, but not every time.
+ *      One other method would be to automatically calculate a ruleset from a given value, this will make the algorithm seeded. I really don't like the seeded method very much because it's more of a cipher than a pseudo random algorithm. I also want to use it to make ZKP protocol handshakes so if it's seeded with a non static value, it'll be harder to make it work well.
+ *      Maybe the solution would be to factorial the coordinate found with the relative value, and then, wrap around the GRID_SIZE to make it fit into the grid. Factorial is generally good for hashing algorithms as i've read in the past, but also for pseudo-random generation. In my case, it's adding a layer of randomness and will (maybe ?) augment entropy of the output.
+ *
+*/
+
 coordinates_t get_coordinates(int relative_source, coordinates_t destination) {
     // formula to find coordinates relatives to a specific element in the 2D list
     // x = (x + offset)%width
@@ -27,8 +42,16 @@ coordinates_t get_coordinates(int relative_source, coordinates_t destination) {
     return destination;
 }
 
-void swap(int source, coordinates_t destination, unsigned char *buffer) {
+void swap(int source, coordinates_t destination, int offset, unsigned char *buffer) {
  
+    // if the integer is positive, then nothing, else negates to be positive
+    destination.X = destination.X ? destination.X : -destination.X;
+    destination.Y = destination.Y ? destination.Y : -destination.Y;
+
+    // tried to add an offset to force the generation to process farther in large files. Makes the program crash for now.
+    destination.X += offset;
+    destination.Y += offset;
+
     int targ = GRID_SIZE * destination.X + destination.Y;
 
     unsigned char temp = buffer[source];
@@ -47,8 +70,9 @@ void flipper(coordinates_t *targets, int size_targets, unsigned char *buffer) {
             for (int index_coo = 0; index_coo < size_targets; index_coo++) {
                 // getting destination position
                 destination = get_coordinates(index_grid, targets[index_coo]);
+                //printf("x: %d, y: %d", destination.X, destination.Y);
                 // swapping the values
-                swap(index_grid, destination, buffer);
+                swap(index_grid, destination, index_grid, buffer);
             }
         }
     }
@@ -61,25 +85,16 @@ void encode(FILE *in, FILE *out) {
     int targets_count = 18;
 
     coordinates_t targets[18] = {
-        // should cumulate a lot of rules to makes it more "random"
-        {.X = 31, .Y = 7},
-        {.X = 17, .Y = 19},
-        {.X = 23, .Y = 3},
-        {.X = 13, .Y = 13},
-        {.X = 13, .Y = 3},
-        {.X = 11, .Y = 5},
-        {.X = 29, .Y = 2},
-        {.X = 1, .Y = 21},
-        {.X = 7, .Y = 23},
-        {.X = 16, .Y = 17},
-        {.X = 3, .Y = 3},
-        {.X = 29, .Y = 29},
-        {.X = 294, .Y = 23941},
-        {.X = 9288, .Y = 111},
-        {.X = 127, .Y = 2},
-        {.X = 29, .Y = 2},
-        {.X = 13, .Y = 3},
-        {.X = 11, .Y = 1111},
+        // side swapping
+        {.X = -1, .Y = 0},
+        {.X = 0, .Y = 1},
+        {.X = 1, .Y = 0},
+        {.X = 0, .Y = -1},
+        // diagonal swapping
+        {.X = -1, .Y = -1},
+        {.X = 1, .Y = 1},
+        {.X = -1, .Y = 1},
+        {.X = 1, .Y = -1},
     };
 
     do {
