@@ -2,8 +2,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#include <signal.h>
 
-#define GRID_SIZE 32
+#define GRID_SIZE 4
 #define BUFF_SIZE (GRID_SIZE * GRID_SIZE)
 
 typedef struct {
@@ -25,6 +26,18 @@ typedef struct {
  *      Maybe the solution would be to factorial the coordinate found with the relative value, and then, wrap around the GRID_SIZE to make it fit into the grid. Factorial is generally good for hashing algorithms as i've read in the past, but also for pseudo-random generation. In my case, it's adding a layer of randomness and will (maybe ?) augment entropy of the output.
  *
 */
+
+void print_buffer(unsigned char *buffer) {
+    for (int index = 0; index < BUFF_SIZE; index++) {
+        for (int stopper = 0; stopper < GRID_SIZE; stopper++) {
+            printf("%u", buffer[index]);
+            if (stopper == GRID_SIZE-1) {
+                printf("\n");
+            }
+        }
+    }
+    printf("\n\nNEXT\n\n");
+}
 
 coordinates_t get_coordinates(int relative_source, coordinates_t destination) {
     // formula to find coordinates relatives to a specific element in the 2D list
@@ -65,14 +78,21 @@ void flipper(coordinates_t *targets, int size_targets, unsigned char *buffer) {
 
     coordinates_t destination = {0};
     
-    for (int rep = 0; rep < 65536; rep++) {
+    for (int rep = 0; rep < 1; rep++) {
         for (int index_grid = 0; index_grid < GRID_SIZE; index_grid++) {
             for (int index_coo = 0; index_coo < size_targets; index_coo++) {
+                
+                print_buffer(buffer);
+
                 // getting destination position
                 destination = get_coordinates(index_grid, targets[index_coo]);
                 //printf("x: %d, y: %d", destination.X, destination.Y);
                 // swapping the values
                 swap(index_grid, destination, index_grid, buffer);
+                
+                print_buffer(buffer);
+
+                raise(SIGTRAP);
             }
         }
     }
