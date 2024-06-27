@@ -61,10 +61,6 @@ void swap(int source, coordinates_t destination, int offset, unsigned char *buff
     destination.X = destination.X ? destination.X : -destination.X;
     destination.Y = destination.Y ? destination.Y : -destination.Y;
 
-    // tried to add an offset to force the generation to process farther in large files. Makes the program crash for now.
-    destination.X += offset;
-    destination.Y += offset;
-
     int targ = GRID_SIZE * destination.X + destination.Y;
 
     unsigned char temp = buffer[source];
