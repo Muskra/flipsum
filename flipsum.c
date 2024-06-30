@@ -4,7 +4,7 @@
 #include <assert.h>
 #include <signal.h>
 
-#define GRID_SIZE 4
+#define GRID_SIZE 4096
 #define BUFF_SIZE (GRID_SIZE * GRID_SIZE)
 
 typedef struct {
@@ -21,10 +21,11 @@ typedef struct {
  * The most problematic is that sometimes there can be untouched information and it's not what we want.
  * Maybe the solution to this is just to find the adequate ruleset to shuffle everything. As i'm not able yet to define an adequate one, i've thinked about some alternative methods :
  *
- *      To prevent this, i can add an offset to the calculated destinations from the relative cell. This will prevent that since it will apply the rule on the same range the cell is, but not every time.
- *      One other method would be to automatically calculate a ruleset from a given value, this will make the algorithm seeded. I really don't like the seeded method very much because it's more of a cipher than a pseudo random algorithm. I also want to use it to make ZKP protocol handshakes so if it's seeded with a non static value, it'll be harder to make it work well.
+ *      One method would be to automatically calculate a ruleset from a given value, this will make the algorithm seeded. I really don't like the seeded method very much because it's more of a cipher than a pseudo random algorithm. I also want to use it to make ZKP protocol handshakes so if it's seeded with a non static value, it'll be harder to make it work well.
  *      Maybe the solution would be to factorial the coordinate found with the relative value, and then, wrap around the GRID_SIZE to make it fit into the grid. Factorial is generally good for hashing algorithms as i've read in the past, but also for pseudo-random generation. In my case, it's adding a layer of randomness and will (maybe ?) augment entropy of the output.
  *
+ * ACTUAL PROBLEMS:
+ *      If the GRID_SIZE is larger than the file size, the buffer is empty, swapping existing values with nothing. Maybe this is why the file comes empty after processing, it seem's not to write the whole buffer afterwards encoding.
 */
 
 void print_buffer(unsigned char *buffer) {
@@ -39,29 +40,33 @@ void print_buffer(unsigned char *buffer) {
     printf("\n\nNEXT\n\n");
 }
 
-coordinates_t get_coordinates(int relative_source, coordinates_t destination) {
-    // formula to find coordinates relatives to a specific element in the 2D list
-    // x = (x + offset)%width
-    // x += x < 0 ? width : 0;
- 
-    //destination.X = relative_source / GRID_SIZE;
-    destination.X = (2 * destination.X) % GRID_SIZE;
-    destination.X += destination.X < 0 ? GRID_SIZE : 0;
+coordinates_t get_coordinates(int relative_source, coordinates_t offset) {
 
-    //destination.Y = relative_source % GRID_SIZE;
-    destination.Y = (destination.Y + destination.X) % GRID_SIZE;
-    destination.Y += destination.Y < 0 ? GRID_SIZE : 0;
+    // converting a 1D coordinates (X alone) into a 2D one (X and Y)
+    coordinates_t source_coordinates = {0};
+    source_coordinates.X = relative_source % GRID_SIZE;
+    source_coordinates.Y = relative_source / GRID_SIZE;
 
-    return destination;
+    // calculating the target's position relatives to the relative_source's
+    coordinates_t out = {0};
+    out.X = (source_coordinates.X + offset.X) % GRID_SIZE;
+    out.X += out.X < 0 ? GRID_SIZE : 0;
+
+    out.Y = (source_coordinates.Y + offset.Y) % GRID_SIZE;
+    out.Y += out.Y < 0 ? GRID_SIZE : 0;
+
+    return out;
 }
 
 void swap(int source, coordinates_t destination, int offset, unsigned char *buffer) {
  
-    // if the integer is positive, then nothing, else negates to be positive
-    destination.X = destination.X ? destination.X : -destination.X;
-    destination.Y = destination.Y ? destination.Y : -destination.Y;
+    assert(destination.X >= 0);
+    assert(destination.Y >= 0);
 
     int targ = GRID_SIZE * destination.X + destination.Y;
+
+    assert(source < BUFF_SIZE);
+    assert(targ < BUFF_SIZE);
 
     unsigned char temp = buffer[source];
     buffer[source] = buffer[targ];
@@ -74,21 +79,14 @@ void flipper(coordinates_t *targets, int size_targets, unsigned char *buffer) {
 
     coordinates_t destination = {0};
     
-    for (int rep = 0; rep < 1; rep++) {
+    for (int rep = 0; rep < 65536; rep++) {
         for (int index_grid = 0; index_grid < GRID_SIZE; index_grid++) {
             for (int index_coo = 0; index_coo < size_targets; index_coo++) {
                 
-                print_buffer(buffer);
-
                 // getting destination position
                 destination = get_coordinates(index_grid, targets[index_coo]);
-                //printf("x: %d, y: %d", destination.X, destination.Y);
                 // swapping the values
                 swap(index_grid, destination, index_grid, buffer);
-                
-                print_buffer(buffer);
-
-                raise(SIGTRAP);
             }
         }
     }
@@ -98,31 +96,60 @@ void encode(FILE *in, FILE *out) {
 
     unsigned char buffer[BUFF_SIZE] = {0};
     size_t size = 0;
-    int targets_count = 18;
 
-    coordinates_t targets[18] = {
+    coordinates_t targets[] = {
+        /*
+        {13, -1},
+        {-1, 31},
+        {-11, 11},
+        {-1, -1},
+        {0, -7},
+        {1, 0},
+        {0, 10},
+        {-5, 0},
+        */
         // side swapping
-        {.X = -1, .Y = 0},
-        {.X = 0, .Y = 1},
-        {.X = 1, .Y = 0},
-        {.X = 0, .Y = -1},
+        {-5, 0},
+        {0, 10},
+        {1, 0},
+        {0, -7},
         // diagonal swapping
-        {.X = -1, .Y = -1},
-        {.X = 1, .Y = 1},
-        {.X = -1, .Y = 1},
-        {.X = 1, .Y = -1},
+        {-1, -1},
+        {-11, 11},
+        {-1, 31},
+        {13, -1}, 
+        
+        /*
+        // side swapping
+        {.X = -3, .Y = 0},
+        {.X = 0, .Y = 3},
+        {.X = 3, .Y = 0},
+        {.X = 0, .Y = -3},
+        // diagonal swapping
+        {.X = -3, .Y = -3},
+        {.X = 3, .Y = 3},
+        {.X = -3, .Y = 3},
+        {.X = 3, .Y = -3},
+        */
     };
+    
+    int targets_count = sizeof(targets) / sizeof(targets[0]);
 
     do {
         size = fread(buffer, 1, BUFF_SIZE, in);
 
         // fill the buffer with zeros
-        memset(buffer + size, 0, BUFF_SIZE - size);
-
+        memset(buffer + size, '.', BUFF_SIZE - size);
+        
+        //print_buffer(buffer);
+        
         flipper(targets, targets_count, buffer);
-
         fwrite(buffer, 1, size, out);
-    
+
+        //printf("AFTER SCRAMBLING");
+
+        //print_buffer(buffer);
+
     } while (size == BUFF_SIZE);
 }
 
